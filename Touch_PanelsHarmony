@@ -1,0 +1,198 @@
+import codeanticode.syphon.*;
+import oscP5.*;
+import netP5.*;
+
+// Communication
+String sketchName = "touch_panelsHarmony";
+OscP5 oscP5;
+NetAddress videoMapperAddress;
+NetAddress trackerMasterAddress;
+//NetAddress remoteControlMax; //control from Max 7 js 
+
+
+float fade = 0; // Variable for fading when mouse pressed
+
+
+//Shader Variable
+PShader noiseShader;
+
+// Ellipse Shape
+PShape[] ellipse = new PShape[4]; 
+
+
+// Touch Variables
+float[] touchX = new float[4];
+float[] touchY = new float[4];
+int[] touchVisible = new int[4];
+
+//Variable Background
+PShape[] rect = new PShape[4];
+
+// IL Canvas
+SyphonServer syphonServer;
+PGraphics canvas;
+int panelWidth = 1280;
+int panelHeight = 720;
+int canvasW = panelWidth * 4;
+int canvasH = panelHeight;
+SyphonServer server;
+
+void settings() 
+{
+  size(1280,180,P3D);
+  PJOGL.profile=1;
+}
+
+void 
+setup()
+{
+  setupDisplay();
+  setupCommunication();
+  noiseShader = loadShader("noisefrag.glsl", "whitenoisevert.glsl");
+  for(int i = 0; i < ellipse.length; ++i) {
+    ellipse[i] = new PShape();
+    touchX[i] = 100;
+    touchY[i] = 100;
+    touchVisible[i] = 1;
+    ellipse[i] = createShape(ELLIPSE, 0, 0, 50, 50);
+    ellipse[i].setFill(color(255,255,255));
+    ellipse[i].setStroke(false);
+  }
+  
+  /*
+  for(int i = 0; i < rect.length; i = 4) {
+    rect[i] = new PShape();
+    panelWidth = 1280;
+    panelHeight = 720;
+    touchVisible[i] = 1;
+    canvasW = panelWidth * 4;
+    canvasH = panelHeight;
+    rect[i] = createShape(RECT, 0, 0, 1280, 720);
+    rect[i].setFill(color(255,255,255));
+    rect[i].setStroke(false);
+  }
+  */
+  
+}
+void 
+setupDisplay()
+{  
+  // setup graphics surface
+  canvas = createGraphics(canvasW,canvasH,P3D);
+  
+  // setup drawing frequency
+  frameRate(60);
+  
+  // syphon setup
+  server = new SyphonServer(this, "Processing_Syphon");
+}
+
+void
+setupCommunication()
+{
+   // setup osc listening port
+   oscP5 = new OscP5(this, 23456);
+  
+  // setup communication for video mapping
+  videoMapperAddress = new NetAddress("127.0.0.1",8400);
+  
+  // setup communication for remoteControl
+  //remoteControlMax = new NetAddress ("127.0.0.1", 23456);
+  
+  // register syphon texture for video mapping
+  OscMessage videoMapperMessage = new OscMessage("/SwitchSyphonClient");
+  videoMapperMessage.add("touch_panelsHarmony"); //It must contain the same name as the Sketch
+  videoMapperMessage.add("Processing_Syphon");
+  videoMapperMessage.add(1.0);
+  oscP5.send(videoMapperMessage, videoMapperAddress); 
+  
+  // setup communictaion for tracking
+  trackerMasterAddress = new NetAddress("127.0.0.1",23456);
+  OscMessage trackerMasterMessage = new OscMessage("/trackerMaster/requestTuiostream");
+  trackerMasterMessage.add(12000);
+  oscP5.send(trackerMasterMessage, trackerMasterAddress); 
+}
+
+void 
+mousePressed() 
+{
+  touchX[0] = (float)mouseX * 4;
+  touchY[0] = (float)mouseY * 4;
+  touchVisible[0] = 1;
+}
+
+void mouseReleased()
+{
+  touchVisible[0] = 0;
+}
+
+void oscEvent(OscMessage theOscMessage) 
+ { 
+    String address = theOscMessage.addrPattern();
+
+    if (address.equals ("/alphafade")) 
+    {
+      fade = theOscMessage.get(0).floatValue();
+    // println("fade is "+fade );
+    }
+    if(address.equals("/touch")){
+        int ID = theOscMessage.get(0).intValue();
+        touchX[ID] = theOscMessage.get(1).floatValue();
+        touchY[ID] = theOscMessage.get(2).floatValue();
+        touchVisible[ID] = theOscMessage.get(3).intValue();
+        println("gtouch control "+ID+" "+touchX[ID]+" "+touchY[ID]+" "+touchVisible[ID]);
+    }
+}
+
+void draw()
+{
+   canvas.beginDraw();
+   
+   canvas.background(10, 23, 78);
+   // midnight blue color: 10, 23, 78
+   // light blue color: 235, 240, 255
+   //shape(rect, 100, 100);
+    
+    canvas.shader(noiseShader);
+    noiseShader.set("myrand", random(0.0, 1.0),random(0.0, 1.0));
+    noiseShader.set("fade", fade);
+   
+   for(int i = 0; i < ellipse.length; i++) {
+    if(touchVisible[i] == 1) {
+      shape(ellipse[i], touchX[i]*1280*0.25, touchY[i]*720*0.25);
+      ellipse[0].setFill(color(235, 240, 255));
+      ellipse[1].setFill(color(229, 255, 225));
+      ellipse[2].setFill(color(255, 238, 247));
+      ellipse[3].setFill(color(255, 255, 238));
+    }
+   } 
+   
+ /*  for(int i = 0; i < rect.length; i = 4) {
+    if(touchVisible[i] == 1) {
+      shape(rect[i], panelWidth, panelHeight);
+      rect[0].setFill(color(235, 240, 255));
+      rect[1].setFill(color(229, 255, 225));
+      rect[2].setFill(color(255, 238, 247));
+      rect[3].setFill(color(255, 255, 238));
+    }
+   } 
+   */
+   
+   
+  println("fade is "+fade );
+ 
+  
+  /*canvas.rect(0,0, 5120,720);
+  canvas.rect(0,0, 1280,720);
+  //canvas.setFill(color(255,255,255));
+  canvas.rect(1280,0, 1280, 720);
+  canvas.rect(0,0, 2560,720);
+  */
+  
+  
+  canvas.endDraw();
+   
+  server.sendImage(canvas);
+  
+  image(canvas,0,0, width, height);
+}
